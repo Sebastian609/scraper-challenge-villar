@@ -23,6 +23,16 @@ export interface Movimentacao {
 
 export interface Documento {
   descricao: string;
+  docUrl: string;
+  idProcessoDoc: string;
+  arquivo?: string;
+}
+
+export interface DocumentoDownload {
+  ca: string;
+  idProcDocBin: string;
+  viewState: string;
+  action: string;
 }
 
 export interface ProcessoDetalhe {

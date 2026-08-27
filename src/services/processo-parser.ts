@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import type { IProcessoParser, FormContext, DateRange } from "../types/scraper.interface.ts";
-import type { Processo, ProcessoDetalhe, Parte, Movimentacao, Documento } from "../types/processo.type.ts";
+import type { Processo, ProcessoDetalhe, Parte, Movimentacao, Documento, DocumentoDownload } from "../types/processo.type.ts";
 
 export class ProcessoParser implements IProcessoParser {
   extractFormContext(html: string): FormContext {
@@ -130,14 +130,43 @@ export class ProcessoParser implements IProcessoParser {
       });
 
     const documentos: Documento[] = [];
-    $("a")
-      .filter((_, e) => ($(e).text() ?? "").trim().startsWith("Visualizar documentos"))
-      .each((_, a) => {
+     $("a")
+       .filter((_, e) => {
+         const oc = $(e).attr("onclick") ?? "";
+         const m = oc.match(/'(https?:\/\/[^']+documentoSemLoginHTML\.seam[^']+)'/);
+         return !!m && /idProcessoDoc=\d+/.test(m[1]);
+       })
+       .each((_, a) => {
+         const onclick = $(a).attr("onclick") ?? "";
+         const urlMatch = onclick.match(/'(https?:\/\/[^']+documentoSemLoginHTML\.seam[^']+)'/);
+         const docUrl = urlMatch ? urlMatch[1] : "";
+         const idMatch = docUrl.match(/idProcessoDoc=(\d+)/);
+         const idProcessoDoc = idMatch ? idMatch[1] : "";
         const raw = ($(a).text() ?? "").replace(/Visualizar documentos/, "").trim();
         const descricao = raw.replace(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}\s*-\s*/, "").trim();
-        documentos.push({ descricao: descricao || "Documento" });
+        documentos.push({
+          descricao: descricao || "Documento",
+          docUrl,
+          idProcessoDoc,
+        });
       });
 
     return { partes, movimentacoes, documentos };
+  }
+
+  parseDocumentDownload(html: string): DocumentoDownload {
+    const $ = cheerio.load(html);
+
+    const anchor = $("a")
+      .filter((_, e) => /downloadPDF/.test($(e).attr("onclick") ?? ""))
+      .first();
+    const onclick = anchor.attr("onclick") ?? "";
+    const ca = (onclick.match(/'ca':'([a-f0-9]+)'/) ?? [])[1] ?? "";
+    const idProcDocBin = (onclick.match(/'idProcDocBin':'([0-9]+)'/) ?? [])[1] ?? "";
+
+    const viewState = $("#j_id42 input[name=javax.faces.ViewState]").val() as string;
+    const action = $("#j_id42").attr("action") ?? "";
+
+    return { ca, idProcDocBin, viewState, action };
   }
 }

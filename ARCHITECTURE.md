@@ -29,20 +29,32 @@ técnicos como `axios` o `cheerio`.
 
 ### `src/utils/` — Lógica pura y reutilizable
 
-Funciones sin efectos secundarios (formateo de fechas, cálculo del rango del mes
-actual). No conocen la red, el DOM ni el sistema de archivos.
+Funciones y utilidades transversales:
 
-**Utilidad:** encapsulan reglas de negocio pequeñas y testeables de forma aislada.
+- `date.util.ts` — cálculo del rango del mes actual (`augustRange`).
+- `concurrency.util.ts` — `mapWithLimit` para ejecutar tareas con concurrencia acotada.
+- `config.util.ts` — `loadConfig()` lee los parámetros de comportamiento desde
+  `process.env` (`DELAY_MS`, `CONCURRENCY`, `TIMEOUT_MS`, `JITTER_MS`).
+- `sleep.util.ts` — `sleep(ms)`.
+- `rate-limiter.util.ts` — `RateLimiter` encadena las peticiones para respetar un
+  intervalo mínimo (`DELAY_MS` + jitter) entre ellas, evitando saturar el sitio.
+- `logger.util.ts` — singleton `log` con `info/warn/error`; escribe con timestamp en
+  consola **y** en `output/logs/scraper-YYYY-MM-DD.log`.
 
-**Justificación:** mantener la lógica pura fuera de las clases de servicio evita
-duplicación y facilita pruebas unitarias sin mocks. Es correcto porque estas
-operaciones son independientes del origen de los datos.
+**Utilidad:** encapsulan reglas de negocio pequeñas, control de ritmo y registro,
+testeables de forma aislada.
+
+**Justificación:** mantener esta lógica fuera de las clases de servicio evita
+duplicación y facilita pruebas sin mocks. Es correcto porque son operaciones
+independientes del origen de los datos.
 
 ### `src/services/` — Implementaciones de infraestructura
 
 Clases concretas que implementan las interfaces de `types`:
-`HttpClient` (acceso HTTP), `ProcessoParser` (extracción y parseo del HTML) y
-`JsonFileWriter` (persistencia en disco).
+`HttpClient` (acceso HTTP con `RateLimiter`, reintentos para `429`/`503` respetando
+`Retry-After`, y logging por petición),
+`ProcessoParser` (extracción y parseo del HTML) y `JsonFileWriter` (persistencia
+en disco).
 
 **Utilidad:** es la única capa que sabe hablar con el exterior (HTTP, HTML,
 sistema de archivos). El resto del sistema solo ve abstracciones.
@@ -77,6 +89,18 @@ caso de uso. Luego invoca `execute()`.
 decidan sus propias dependencias (lo que las acoplaría). Es correcto porque el
 punto de entrada es el lugar natural donde el conocimiento de las implementaciones
 concretas es aceptable y acotado.
+
+**Ejecución:** el proyecto se corre con `npm run start` (equivalente a `npm start` /
+`node src/index.ts`, vía *type-stripping* de Node 22, sin compilación). Scripts
+disponibles en `package.json`:
+
+- `npm run start` — ejecución normal del scrape.
+- `npm run scrape` — alias de la ejecución normal.
+- `npm run retry` — reintenta solo los documentos/detalles fallidos
+  (equivale a `RETRY_FAILED=1 npm run start`).
+
+Toda la configuración de comportamiento (delays, concurrencia, reintentos, timeouts)
+se pasa por variables de entorno; ver `README.md`.
 
 ---
 

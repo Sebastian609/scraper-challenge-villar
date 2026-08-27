@@ -8,4 +8,10 @@ export class JsonFileWriter implements IFileWriter {
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, JSON.stringify(data, null, 2), "utf-8");
   }
+
+  writeBinary(filePath: string, data: Buffer): void {
+    const full = resolve(filePath);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, data);
+  }
 }
