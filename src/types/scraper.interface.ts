@@ -1,4 +1,4 @@
-import type { Processo } from "./processo.type.ts";
+import type { Processo, ProcessoDetalhe } from "./processo.type.ts";
 
 export interface DateRange {
   start: string;
@@ -19,6 +19,7 @@ export interface IProcessoParser {
   extractFormContext(html: string): FormContext;
   buildSearchFields(html: string, range: DateRange, context: FormContext): Record<string, string>;
   parseResults(html: string): Processo[];
+  parseDetail(html: string): ProcessoDetalhe;
 }
 
 export interface IFileWriter {

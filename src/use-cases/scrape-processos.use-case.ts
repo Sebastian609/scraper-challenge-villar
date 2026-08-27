@@ -1,12 +1,13 @@
 import qs from "querystring";
 import type { IScrapeProcessosUseCase } from "../types/scraper.interface.ts";
-import { currentMonthRange } from "../utils/date.util.ts";
+import { augustRange } from "../utils/date.util.ts";
 import { HttpClient } from "../services/http-client.ts";
 import { ProcessoParser } from "../services/processo-parser.ts";
 import { JsonFileWriter } from "../services/json-file-writer.ts";
 
 export class ScrapeProcessosUseCase implements IScrapeProcessosUseCase {
   private readonly source = "https://pjett.trf5.jus.br/pjeconsulta/ConsultaPublica/listView.seam";
+  private readonly baseUrl = "https://pjett.trf5.jus.br";
   private readonly outputPath = "output/processos.json";
   private readonly http: HttpClient;
   private readonly parser: ProcessoParser;
@@ -28,7 +29,7 @@ export class ScrapeProcessosUseCase implements IScrapeProcessosUseCase {
   async execute(): Promise<void> {
     const { html, cookie } = await this.http.get(this.source, this.headers);
     const context = this.parser.extractFormContext(html);
-    const range = currentMonthRange();
+    const range = augustRange();
 
     console.log(`Rango de fechas: ${range.start} - ${range.end}`);
 
@@ -42,6 +43,14 @@ export class ScrapeProcessosUseCase implements IScrapeProcessosUseCase {
 
     const processos = this.parser.parseResults(postHtml);
     console.log(`Filas encontradas: ${processos.length}`);
+
+    for (const processo of processos) {
+      if (!processo.detalheUrl) continue;
+      const detailUrl = `${this.baseUrl}${processo.detalheUrl}`;
+      const detail = await this.http.get(detailUrl, { ...this.headers, Cookie: cookie });
+      processo.detalhe = this.parser.parseDetail(detail.html);
+    }
+    console.log(`Detalhes consultados: ${processos.filter((p) => p.detalhe).length}`);
 
     this.writer.writeJson(this.outputPath, processos);
     console.log(`Guardado ${this.outputPath} con ${processos.length} registros`);

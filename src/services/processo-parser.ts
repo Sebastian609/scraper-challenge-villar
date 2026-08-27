@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import type { IProcessoParser, FormContext, DateRange } from "../types/scraper.interface.ts";
-import type { Processo } from "../types/processo.type.ts";
+import type { Processo, ProcessoDetalhe, Parte, Movimentacao, Documento } from "../types/processo.type.ts";
 
 export class ProcessoParser implements IProcessoParser {
   extractFormContext(html: string): FormContext {
@@ -80,5 +80,64 @@ export class ProcessoParser implements IProcessoParser {
     });
 
     return processos;
+  }
+
+  parseDetail(html: string): ProcessoDetalhe {
+    const $ = cheerio.load(html);
+
+    const partes: Parte[] = [];
+    $("*")
+      .filter((_, e) => {
+        const id = $(e).attr("id") ?? "";
+        return /processoPartesPolo(Ativo|Passivo)ResumidoList$/.test(id);
+      })
+      .each((_, table) => {
+        const polo: "Ativo" | "Passivo" = /PoloAtivo/.test($(table).attr("id") ?? "") ? "Ativo" : "Passivo";
+        $(table)
+          .find("tbody tr")
+          .each((_, tr) => {
+            const cells = $(tr).find("td").map((__, td) => $(td).text().replace(/\s+/g, " ").trim()).get();
+            if (cells.length < 2) return;
+            const raw = cells[0];
+            const nome = raw.split(/\s-\s(?:CNPJ|CPF)/)[0].trim();
+            const tipoMatch = raw.match(/\(([^)]+)\)/);
+            partes.push({
+              nome,
+              tipo: tipoMatch ? tipoMatch[1].trim() : "",
+              situacao: cells[1],
+              polo,
+            });
+          });
+      });
+
+    const movimentacoes: Movimentacao[] = [];
+    $("*")
+      .filter((_, e) => {
+        const id = $(e).attr("id") ?? "";
+        return id === "j_id146:processoEvento" || /processoEvento.*tb$/.test(id);
+      })
+      .first()
+      .find("tbody tr")
+      .each((_, tr) => {
+        const text = $(tr).find("td").first().text().replace(/\s+/g, " ").trim();
+        if (!text) return;
+        const idx = text.indexOf(" - ");
+        if (idx === -1) return;
+        movimentacoes.push({
+          data: text.slice(0, idx).trim(),
+          descricao: text.slice(idx + 3).trim(),
+        });
+      });
+
+    const documentos: Documento[] = [];
+    $("a")
+      .filter((_, e) => ($(e).text() ?? "").trim().startsWith("Visualizar documentos"))
+      .each((_, a) => {
+        const raw = ($(a).text() ?? "").replace(/Visualizar documentos/, "").trim();
+        const descricao = raw.replace(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}\s*-\s*/, "").trim();
+        documentos.push({ descricao: descricao || "Documento" });
+      });
+
+    return { partes, movimentacoes, documentos };
   }
 }

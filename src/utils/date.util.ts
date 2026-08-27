@@ -7,8 +7,9 @@ export function formatDate(d: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-export function currentMonthRange(): DateRange {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  return { start: formatDate(start), end: formatDate(now) };
+export function augustRange(): DateRange {
+  const year = new Date().getFullYear();
+  const start = new Date(year, 7, 1);
+  const end = new Date(year, 7, 31);
+  return { start: formatDate(start), end: formatDate(end) };
 }
